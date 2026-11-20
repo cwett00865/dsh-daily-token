@@ -1,0 +1,56 @@
+{
+  "name": "dsh-profile-desktop",
+  "private": true,
+  "dependencies": {
+    "@deepseek-ai/dsh-subagent-claude-code": "0.2.2-rc.5",
+    "@deepseek-ai/dsh-subagent-codex": "0.2.2-rc.5",
+    "@liustack/modlens": "3.27.5",
+    "@michengai/dsh-archive-manager": "1.3.7",
+    "@weibaohui/skills-management": "^0.9.3",
+    "billion-context": "0.1.216",
+    "dsh-connect-workbuddy": "5.24.17",
+    "dsh-context": "0.86.0",
+    "dsh-cost-meter": "1.9.73",
+    "dsh-genui": "^0.3.3",
+    "dsh-memory-layered": "0.9.0",
+    "dsh-ops": "0.5.5",
+    "dsh-pet": "0.4.9",
+    "dsh-token-diet": "^0.1.0",
+    "dsh-windows-mcp": "0.2.11",
+    "dshmarket": "1.73.23"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "@deepseek-ai/dsh-experimental-auto-review",
+        "@deepseek-ai/dsh-experimental-tool-worktree",
+        "@deepseek-ai/dsh-experimental-terminal-bundle",
+        "@deepseek-ai/dsh-experimental-session-search",
+        "@deepseek-ai/dsh-experimental-session-titles-bundle",
+        "@deepseek-ai/dsh-experimental-ralph-bundle",
+        "@deepseek-ai/dsh-experimental-plugin-market-bundle",
+        "dsh-token-diet",
+        "dsh-genui",
+        "@weibaohui/skills-management",
+        "@deepseek-ai/dsh-experimental-forge-bundle",
+        "@deepseek-ai/dsh-experimental-cot-translation-bundle",
+        "@deepseek-ai/dsh-experimental-inspector-profile",
+        "dsh-ops",
+        "dsh-pet",
+        "dshmarket",
+        "@liustack/modlens",
+        "dsh-windows-mcp",
+        "@deepseek-ai/dsh-subagent-claude-code",
+        "@deepseek-ai/dsh-subagent-codex",
+        "dsh-connect-workbuddy",
+        "billion-context",
+        "@michengai/dsh-archive-manager",
+        "dsh-cost-meter",
+        "dsh-memory-layered",
+        "dsh-context"
+      ]
+    }
+  }
+}
