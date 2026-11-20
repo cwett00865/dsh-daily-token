@@ -44,13 +44,13 @@ window.__ModuleLoader__.load({
         '.dt-block{padding:10px 0;border-bottom:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor))}',
         '.dt-block:last-child{border-bottom:0}',
         '.dt-h{margin-bottom:6px;font-weight:600;color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
-        '.dt-h-row{display:flex;align-items:center;justify-content:space-between;gap:8px}',
+        '.dt-h-row{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:8px}',
         '.dt-total{font-size:28px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
         '.dt-detail{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:8px}',
         '.dt-detail-item{display:inline-flex;align-items:baseline;gap:4px}',
         '.dt-detail-k{color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
         '.dt-detail-v{font-variant-numeric:tabular-nums}',
-        '.dt-switch{display:inline-flex;gap:4px}',
+        '.dt-switch{display:inline-flex;flex-shrink:0;gap:6px;margin:2px 0 0}',
         '.dt-switch button{padding:2px 8px;font:inherit;font-size:11px;line-height:16px;cursor:pointer;border-radius:4px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
         '.dt-switch button.dt-on{border-color:var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor));color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
         '.dt-chart{margin-top:8px}',
@@ -183,19 +183,18 @@ window.__ModuleLoader__.load({
                           detail('缓存写', today.cacheWrite))),
                       // 2) 7/30 切换 + 柱状图
                       h('div', { className: 'dt-block' },
-                        h('div', { className: 'dt-h dt-h-row' },
-                          h('span', null, '用量趋势'),
-                          h('span', { className: 'dt-switch' },
-                            h('button', {
-                              type: 'button',
-                              className: days === 7 ? 'dt-on' : '',
-                              onClick: () => setDays(7),
-                            }, '近 7 天'),
-                            h('button', {
-                              type: 'button',
-                              className: days === 30 ? 'dt-on' : '',
-                              onClick: () => setDays(30),
-                            }, '近 30 天'))),
+                        h('div', { className: 'dt-h' }, '用量趋势'),
+                        h('div', { className: 'dt-switch' },
+                          h('button', {
+                            type: 'button',
+                            className: days === 7 ? 'dt-on' : '',
+                            onClick: () => setDays(7),
+                          }, '近 7 天'),
+                          h('button', {
+                            type: 'button',
+                            className: days === 30 ? 'dt-on' : '',
+                            onClick: () => setDays(30),
+                          }, '近 30 天')),
                         chart(data.trend)),
                       // 3) 数据来源
                       h('div', { className: 'dt-src' }, '数据来自 cost-meter 账本')))
