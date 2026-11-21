@@ -64,6 +64,19 @@ window.__ModuleLoader__.load({
         '.dt-state{padding:8px 0;text-align:center;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
         '.dt-retry{display:block;margin:8px auto 0;padding:4px 14px;font:inherit;font-size:12px;line-height:16px;cursor:pointer;border-radius:5px;border:1px solid var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
         '.dt-empty{padding:24px 0;text-align:center;font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
+        '.dt-daterow{display:flex;align-items:center;gap:8px;padding:0 0 10px;margin-bottom:10px;border-bottom:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor))}',
+        '.dt-date{flex:1 1 auto;min-width:0;padding:3px 6px;font:inherit;font-size:12px;line-height:16px;color:inherit;background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));border-radius:5px}',
+        '.dt-today{flex:0 0 auto;padding:3px 10px;font:inherit;font-size:12px;line-height:16px;cursor:pointer;border-radius:5px;border:1px solid var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor));background:transparent;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
+        '.dt-cmp{display:grid;grid-template-columns:52px 1fr 1fr;gap:4px 8px;align-items:baseline}',
+        '.dt-cmp-h{font-size:11px;font-weight:600;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit));text-align:right}',
+        '.dt-cmp-k{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
+        '.dt-cmp-k.dt-strong{font-size:12px;font-weight:700;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
+        '.dt-cmp-v{font-size:12px;text-align:right;font-variant-numeric:tabular-nums}',
+        '.dt-cmp-v.dt-strong{font-size:18px;font-weight:700;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
+        '.dt-col.dt-pick{cursor:pointer}',
+        '.dt-bars.dt-has-sel .dt-col:not(.dt-sel) .dt-bar{opacity:.4}',
+        '.dt-bars.dt-has-sel .dt-col.dt-pick:hover .dt-bar{opacity:.85}',
+        '.dt-col.dt-sel .dt-x-label{font-weight:700;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
       ].join('\n')
       document.head.appendChild(style)
     }
@@ -74,8 +87,25 @@ window.__ModuleLoader__.load({
         h('span', { className: 'dt-detail-v' }, formatNumber(value)))
     }
 
-    /** 7/30 day bar chart built from plain divs. Bar height = total / max total. */
-    function chart(trend) {
+    /** '2026-11-18' -> '11月18日' */
+    function fmtDate(s) {
+      const parts = String(s || '').split('-')
+      if (parts.length !== 3) return String(s || '')
+      return Number(parts[1]) + '月' + Number(parts[2]) + '日'
+    }
+
+    /** One comparison row: label, today's value, picked-day value. */
+    function cmpRow(label, a, b, strong) {
+      const v = 'dt-cmp-v' + (strong ? ' dt-strong' : '')
+      const k = 'dt-cmp-k' + (strong ? ' dt-strong' : '')
+      return h(React.Fragment, { key: label },
+        h('div', { className: k }, label),
+        h('div', { className: v }, formatNumber(a)),
+        h('div', { className: v }, formatNumber(b)))
+    }
+
+    /** 7/30 day bar chart built from plain divs. Bar height = total / max total. Clicking a bar picks that day. */
+    function chart(trend, pickedDate, onPick) {
       const items = Array.isArray(trend) ? trend : []
       let max = 0
       for (let i = 0; i < items.length; i++) {
@@ -86,13 +116,18 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'dt-chart' },
         items.length === 0
           ? h('div', { className: 'dt-empty' }, '暂无趋势数据')
-          : h('div', { className: 'dt-bars' }, items.map((item, i) => {
+          : h('div', { className: 'dt-bars' + (pickedDate ? ' dt-has-sel' : '') }, items.map((item, i) => {
               const total = Number(item && item.total) || 0
               const date = String((item && item.date) || '')
               const label = date.length >= 10 ? date.slice(5, 10) : date
-              const title = date + ' · ' + formatNumber(total)
+              const title = date + ' · ' + formatNumber(total) + '（点击查看当天）'
               const pct = total > 0 ? (total / max) * 100 : 0
-              return h('div', { className: 'dt-col', key: date || i },
+              const sel = !!pickedDate && date === pickedDate
+              return h('div', {
+                className: 'dt-col dt-pick' + (sel ? ' dt-sel' : ''),
+                key: date || i,
+                onClick: () => { if (date) onPick(date) },
+              },
                 h('div', { className: 'dt-bar-slot' },
                   total > 0
                     ? h('div', { className: 'dt-bar', title: title, style: { height: pct + '%' } })
@@ -106,6 +141,7 @@ window.__ModuleLoader__.load({
 
     function DailyTokenWidget() {
       const [days, setDays] = useState(7)
+      const [pickedDate, setPickedDate] = useState('')
       const [result, setResult] = useState({ data: null, loading: true, error: null })
       const [open, setOpen] = useState(false)
       const [retry, setRetry] = useState(0)
@@ -117,7 +153,7 @@ window.__ModuleLoader__.load({
         let controller = null
         try { controller = typeof AbortController === 'function' ? new AbortController() : null } catch { controller = null }
         setResult({ data: null, loading: true, error: null })
-        fetch(API + '?days=' + days, controller ? { signal: controller.signal } : undefined)
+        fetch(API + '?days=' + days + (pickedDate ? '&date=' + encodeURIComponent(pickedDate) : ''), controller ? { signal: controller.signal } : undefined)
           .then((res) => {
             if (!res || !res.ok) throw new Error('HTTP ' + (res && res.status))
             return res.json()
@@ -132,7 +168,7 @@ window.__ModuleLoader__.load({
           cancelled = true
           try { if (controller) controller.abort() } catch { /* ignore */ }
         }
-      }, [days, retry])
+      }, [days, retry, pickedDate])
 
       // Close on outside click; listener is removed on cleanup.
       useEffect(() => {
@@ -148,6 +184,7 @@ window.__ModuleLoader__.load({
       const data = result.data
       const hasData = !!(data && !data.stale && data.today && typeof data.today === 'object')
       const today = hasData ? data.today : null
+      const picked = hasData && pickedDate && data.selected ? data.selected : null
       const noData = !result.loading && (!hasData || !!result.error)
       const buttonLabel = hasData ? '今日 Token ' + formatNumber(today.total) : 'Token 用量'
 
@@ -172,15 +209,42 @@ window.__ModuleLoader__.load({
                         onClick: () => setRetry((n) => n + 1),
                       }, '重试'))
                   : h('div', null,
-                      // 1) 今日总量 + 四项明细
+                      // 1) 日期选择 + 今日/所选日期对比
+                      h('div', { className: 'dt-daterow' },
+                        h('input', {
+                          type: 'date',
+                          className: 'dt-date',
+                          value: pickedDate,
+                          max: today.date,
+                          title: '选择日期查看当天用量',
+                          onChange: (e) => setPickedDate(e.target.value || ''),
+                        }),
+                        pickedDate
+                          ? h('button', {
+                              type: 'button',
+                              className: 'dt-today',
+                              onClick: () => setPickedDate(''),
+                            }, '回到今天')
+                          : null),
                       h('div', { className: 'dt-block' },
-                        h('div', { className: 'dt-h' }, '今日 Token'),
-                        h('div', { className: 'dt-total' }, formatNumber(today.total)),
-                        h('div', { className: 'dt-detail' },
-                          detail('输入', today.input),
-                          detail('输出', today.output),
-                          detail('缓存读', today.cacheRead),
-                          detail('缓存写', today.cacheWrite))),
+                        picked
+                          ? h('div', { className: 'dt-cmp' },
+                              h('div', { className: 'dt-cmp-k' }, ''),
+                              h('div', { className: 'dt-cmp-h' }, '今日'),
+                              h('div', { className: 'dt-cmp-h' }, fmtDate(picked.date)),
+                              cmpRow('总计', today.total, picked.total, true),
+                              cmpRow('输入', today.input, picked.input),
+                              cmpRow('输出', today.output, picked.output),
+                              cmpRow('缓存读', today.cacheRead, picked.cacheRead),
+                              cmpRow('缓存写', today.cacheWrite, picked.cacheWrite))
+                          : h('div', null,
+                              h('div', { className: 'dt-h' }, '今日 Token'),
+                              h('div', { className: 'dt-total' }, formatNumber(today.total)),
+                              h('div', { className: 'dt-detail' },
+                                detail('输入', today.input),
+                                detail('输出', today.output),
+                                detail('缓存读', today.cacheRead),
+                                detail('缓存写', today.cacheWrite)))),
                       // 2) 7/30 切换 + 柱状图
                       h('div', { className: 'dt-block' },
                         h('div', { className: 'dt-h' }, '用量趋势'),
@@ -195,7 +259,7 @@ window.__ModuleLoader__.load({
                             className: days === 30 ? 'dt-on' : '',
                             onClick: () => setDays(30),
                           }, '近 30 天')),
-                        chart(data.trend)),
+                        chart(data.trend, pickedDate, (d) => setPickedDate(d))),
                       // 3) 数据来源
                       h('div', { className: 'dt-src' }, '数据来自 cost-meter 账本')))
           : null)

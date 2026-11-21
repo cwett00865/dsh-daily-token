@@ -36,17 +36,24 @@ export function apply(ctx) {
         const url = new URL(req.url ?? '/', 'http://dsh.internal')
         if (url.pathname !== '/daily-token/api/summary') { send(404, { error: 'not-found' }); return }
         const days = [7, 30].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 7
+        const rawDate = url.searchParams.get('date')
+        const pickedDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : null
         const ledgerDays = await readLedger()
         const today = todayStr()
-        if (!ledgerDays) { send(200, { today: { date: today, ...sumDay({}) }, trend: buildTrend({}, today, days), stale: true }); return }
+        const selected = pickedDate ? { date: pickedDate, ...sumDay((ledgerDays && ledgerDays[pickedDate]) || {}) } : null
+        if (!ledgerDays) {
+          send(200, { today: { date: today, ...sumDay({}) }, selected, trend: buildTrend({}, today, days), stale: true })
+          return
+        }
         send(200, {
           today: { date: today, ...sumDay(ledgerDays[today] || {}) },
+          selected,
           trend: buildTrend(ledgerDays, today, days),
           stale: false,
         })
       } catch (err) {
         ctx.logger?.warn?.('dsh-daily-token: api failed: ' + (err?.message ?? err))
-        send(200, { today: { date: todayStr(), ...sumDay({}) }, trend: [], stale: true })
+        send(200, { today: { date: todayStr(), ...sumDay({}) }, selected: null, trend: [], stale: true })
       }
     },
   }
