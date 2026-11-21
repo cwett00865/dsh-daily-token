@@ -93,6 +93,11 @@ window.__ModuleLoader__.load({
         '.dtp-tbl td{text-align:right;padding:4px 8px;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));white-space:nowrap}',
         '.dtp-tbl tbody tr:last-child td{border-bottom:none}',
         '.dtp-empty{padding:12px 0;text-align:center;font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
+        '.dtp-sum{display:flex;align-items:baseline;gap:8px;margin:2px 0 2px;flex-wrap:wrap}',
+        '.dtp-sum-k{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
+        '.dtp-sum-v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}',
+        '.dtp-sum-avg{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
+        '.dtp-sum-detail{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit));margin-bottom:8px;font-variant-numeric:tabular-nums}',
       ].join('\n')
       document.head.appendChild(style)
     }
@@ -370,6 +375,14 @@ window.__ModuleLoader__.load({
       const modelRows = shown && Array.isArray(shown.byModel) ? shown.byModel : []
       const chartRows = days === 30 ? trend : trend.slice(-7)
       const tableRows = trend.slice().reverse()
+      const rangeSum = chartRows.reduce((acc, r) => {
+        acc.total += (r && r.total) || 0
+        acc.input += (r && r.input) || 0
+        acc.output += (r && r.output) || 0
+        acc.cacheRead += (r && r.cacheRead) || 0
+        return acc
+      }, { total: 0, input: 0, output: 0, cacheRead: 0 })
+      const rangeAvg = chartRows.length ? Math.round(rangeSum.total / chartRows.length) : 0
 
       return h('div', { className: 'dtp' },
         head,
@@ -421,6 +434,12 @@ window.__ModuleLoader__.load({
               className: days === 30 ? 'dt-on' : '',
               onClick: () => setDays(30),
             }, '近 30 天')),
+          h('div', { className: 'dtp-sum' },
+            h('span', { className: 'dtp-sum-k' }, '近 ' + days + ' 天合计'),
+            h('span', { className: 'dtp-sum-v' }, formatNumber(rangeSum.total)),
+            h('span', { className: 'dtp-sum-avg' }, '日均 ' + formatNumber(rangeAvg))),
+          h('div', { className: 'dtp-sum-detail' },
+            '输入 ' + formatNumber(rangeSum.input) + ' · 输出 ' + formatNumber(rangeSum.output) + ' · 缓存读 ' + formatNumber(rangeSum.cacheRead)),
           chart(chartRows, pickedDate, (d) => setPickedDate(d))),
         h('div', { className: 'dtp-card' },
           h('div', { className: 'dt-h' }, '按模型 · ' + (picked ? fmtDate(picked.date) : '今日')),
