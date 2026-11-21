@@ -18,6 +18,10 @@ window.__ModuleLoader__.load({
     const React = require('react')
     const h = React.createElement
     const { useState, useEffect, useRef } = React
+    // 浮层挂到 document.body：侧栏列会裁剪/滚动自己的内容，只有 portal 出去才能完整显示。
+    const createPortal = (() => {
+      try { return require('react-dom')?.createPortal || null } catch { return null }
+    })()
 
     const STYLE_ID = 'dsh-daily-token/widget'
     const API = '/daily-token/api/summary'
@@ -40,7 +44,7 @@ window.__ModuleLoader__.load({
         '.dt-wrap{position:relative;display:inline-block;margin:12px 0 10px;font-family:inherit;font-size:12px;line-height:16px}',
         '.dt-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;font:inherit;font-size:12px;line-height:16px;cursor:pointer;border-radius:6px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
         '.dt-btn:hover{border-color:var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor))}',
-        '.dt-pop{position:absolute;left:0;bottom:calc(100% + 8px);width:320px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:14px;z-index:1000;border-radius:10px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg-elevated,var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1,transparent)));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
+        '.dt-pop{position:fixed;box-sizing:border-box;padding:14px;z-index:1000;border-radius:10px;width:430px;max-width:calc(100vw - 16px);max-height:min(72vh,640px);overflow:auto;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg-elevated,var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1,transparent)));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
         '.dt-block{padding:10px 0;border-bottom:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor))}',
         '.dt-block:last-child{border-bottom:0}',
         '.dt-h{margin-bottom:6px;font-weight:600;color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
@@ -77,6 +81,18 @@ window.__ModuleLoader__.load({
         '.dt-bars.dt-has-sel .dt-col:not(.dt-sel) .dt-bar{opacity:.4}',
         '.dt-bars.dt-has-sel .dt-col.dt-pick:hover .dt-bar{opacity:.85}',
         '.dt-col.dt-sel .dt-x-label{font-weight:700;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
+        '.dtp{display:flex;flex-direction:column;gap:14px;font-size:12px;line-height:1.5}',
+        '.dtp-title{font-size:14px;font-weight:600}',
+        '.dtp-card{border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));border-radius:10px;padding:14px}',
+        '.dtp .dt-bars{height:180px;gap:4px}',
+        '.dtp .dt-x{height:40px}',
+        '.dtp .dt-x-label{font-size:10px}',
+        '.dtp-tbl{width:100%;border-collapse:collapse;font-size:12px}',
+        '.dtp-tbl th{text-align:right;font-weight:600;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit));padding:4px 8px;border-bottom:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));white-space:nowrap}',
+        '.dtp-tbl th:first-child,.dtp-tbl td:first-child{text-align:left}',
+        '.dtp-tbl td{text-align:right;padding:4px 8px;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));white-space:nowrap}',
+        '.dtp-tbl tbody tr:last-child td{border-bottom:none}',
+        '.dtp-empty{padding:12px 0;text-align:center;font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
       ].join('\n')
       document.head.appendChild(style)
     }
@@ -145,7 +161,9 @@ window.__ModuleLoader__.load({
       const [result, setResult] = useState({ data: null, loading: true, error: null })
       const [open, setOpen] = useState(false)
       const [retry, setRetry] = useState(0)
+      const [pos, setPos] = useState(null)
       const rootRef = useRef(null)
+      const popRef = useRef(null)
 
       // Pure same-origin fetch, as ruled by the controller (no RPC branch).
       useEffect(() => {
@@ -170,12 +188,29 @@ window.__ModuleLoader__.load({
         }
       }, [days, retry, pickedDate])
 
+      // 打开时按按钮位置算浮层坐标：优先放右侧，右侧不够就翻到左侧；浮层是 fixed，不受侧栏裁剪。
+      useEffect(() => {
+        if (!open || typeof window === 'undefined') { setPos(null); return }
+        const el = rootRef.current
+        if (!el || typeof el.getBoundingClientRect !== 'function') return
+        const rect = el.getBoundingClientRect()
+        const width = Math.min(430, Math.max(280, window.innerWidth - 16))
+        const gap = 8
+        let left = rect.right + gap
+        if (left + width > window.innerWidth - gap) left = Math.max(gap, rect.left - width - gap)
+        const bottom = Math.max(gap, window.innerHeight - rect.bottom)
+        setPos({ left, bottom, width })
+      }, [open])
+
       // Close on outside click; listener is removed on cleanup.
       useEffect(() => {
         if (!open || typeof document === 'undefined') return undefined
         function onDocClick(e) {
           const el = rootRef.current
-          if (el && e.target && !el.contains(e.target)) setOpen(false)
+          const pop = popRef.current
+          const insideButton = !!(el && e.target && el.contains(e.target))
+          const insidePop = !!(pop && e.target && pop.contains(e.target))
+          if (!insideButton && !insidePop) setOpen(false)
         }
         document.addEventListener('click', onDocClick)
         return () => document.removeEventListener('click', onDocClick)
@@ -188,6 +223,13 @@ window.__ModuleLoader__.load({
       const noData = !result.loading && (!hasData || !!result.error)
       const buttonLabel = hasData ? '今日 Token ' + formatNumber(today.total) : 'Token 用量'
 
+      const popStyle = pos
+        ? { left: pos.left + 'px', bottom: pos.bottom + 'px', width: pos.width + 'px' }
+        : { left: '8px', bottom: '8px', width: '430px', visibility: 'hidden' }
+      const portalize = (node) => (
+        typeof document !== 'undefined' && createPortal ? createPortal(node, document.body) : node
+      )
+
       return h('div', { className: 'dt-wrap', ref: rootRef },
         h('button', {
           type: 'button',
@@ -197,7 +239,7 @@ window.__ModuleLoader__.load({
           onClick: () => setOpen((v) => !v),
         }, buttonLabel),
         open
-          ? h('div', { className: 'dt-pop' },
+          ? portalize(h('div', { className: 'dt-pop', ref: popRef, style: popStyle },
               result.loading
                 ? h('div', { className: 'dt-state' }, '加载中…')
                 : noData
@@ -261,8 +303,145 @@ window.__ModuleLoader__.load({
                           }, '近 30 天')),
                         chart(data.trend, pickedDate, (d) => setPickedDate(d))),
                       // 3) 数据来源
-                      h('div', { className: 'dt-src' }, '数据来自 cost-meter 账本')))
+                      h('div', { className: 'dt-src' }, '数据来自 cost-meter 账本；完整统计在 设置 → Token 用量'))))
           : null)
+    }
+
+    /** 简单表格：headers 文本数组，rows 是单元格数组的数组。 */
+    function table(headers, rows) {
+      return h('table', { className: 'dtp-tbl' },
+        h('thead', null, h('tr', null, headers.map((label) => h('th', { key: label }, label)))),
+        h('tbody', null, rows.map((cells, i) => h('tr', { key: i }, cells.map((cell, j) => h('td', { key: j }, cell))))))
+    }
+
+    /** 设置里的整页：日期对比 + 趋势 + 按模型 + 最近 30 天明细。 */
+    function DailyTokenPage() {
+      const [days, setDays] = useState(30)
+      const [pickedDate, setPickedDate] = useState('')
+      const [result, setResult] = useState({ data: null, loading: true, error: null })
+      const [retry, setRetry] = useState(0)
+
+      useEffect(() => {
+        let cancelled = false
+        let controller = null
+        try { controller = typeof AbortController === 'function' ? new AbortController() : null } catch { controller = null }
+        setResult({ data: null, loading: true, error: null })
+        fetch(API + '?days=30' + (pickedDate ? '&date=' + encodeURIComponent(pickedDate) : ''), controller ? { signal: controller.signal } : undefined)
+          .then((res) => {
+            if (!res || !res.ok) throw new Error('HTTP ' + (res && res.status))
+            return res.json()
+          })
+          .then((json) => {
+            if (!cancelled) setResult({ data: json && typeof json === 'object' ? json : null, loading: false, error: null })
+          })
+          .catch((err) => {
+            if (!cancelled && !(err && err.name === 'AbortError')) setResult({ data: null, loading: false, error: err })
+          })
+        return () => {
+          cancelled = true
+          try { if (controller) controller.abort() } catch { /* ignore */ }
+        }
+      }, [retry, pickedDate])
+
+      const data = result.data
+      const hasData = !!(data && !data.stale && data.today && typeof data.today === 'object')
+      const today = hasData ? data.today : null
+      const picked = hasData && pickedDate && data.selected ? data.selected : null
+      const shown = picked || today
+      const trend = hasData && Array.isArray(data.trend) ? data.trend : []
+
+      const head = h('div', { className: 'dtp-title' }, '每日 Token 用量')
+
+      if (result.loading) {
+        return h('div', { className: 'dtp' }, head, h('div', { className: 'dt-state' }, '加载中…'))
+      }
+      if (!hasData || result.error) {
+        return h('div', { className: 'dtp' }, head,
+          h('div', { className: 'dt-state' },
+            h('div', null, '暂无数据'),
+            h('button', {
+              type: 'button',
+              className: 'dt-retry',
+              onClick: () => setRetry((n) => n + 1),
+            }, '重试')),
+          h('div', { className: 'dt-src' }, '数据来自 cost-meter 账本'))
+      }
+
+      const modelRows = shown && Array.isArray(shown.byModel) ? shown.byModel : []
+      const chartRows = days === 30 ? trend : trend.slice(-7)
+      const tableRows = trend.slice().reverse()
+
+      return h('div', { className: 'dtp' },
+        head,
+        h('div', { className: 'dtp-card' },
+          h('div', { className: 'dt-daterow' },
+            h('input', {
+              type: 'date',
+              className: 'dt-date',
+              value: pickedDate,
+              max: today.date,
+              onChange: (e) => setPickedDate(e.target.value || ''),
+            }),
+            pickedDate
+              ? h('button', {
+                  type: 'button',
+                  className: 'dt-today',
+                  onClick: () => setPickedDate(''),
+                }, '回到今天')
+              : null),
+          picked
+            ? h('div', { className: 'dt-cmp' },
+                h('div', { className: 'dt-cmp-k' }, ''),
+                h('div', { className: 'dt-cmp-h' }, '今日'),
+                h('div', { className: 'dt-cmp-h' }, fmtDate(picked.date)),
+                cmpRow('总计', today.total, picked.total, true),
+                cmpRow('输入', today.input, picked.input),
+                cmpRow('输出', today.output, picked.output),
+                cmpRow('缓存读', today.cacheRead, picked.cacheRead),
+                cmpRow('缓存写', today.cacheWrite, picked.cacheWrite),
+                cmpRow('调用次数', today.calls, picked.calls))
+            : h('div', null,
+                h('div', { className: 'dt-h' }, '今日 Token'),
+                h('div', { className: 'dt-total' }, formatNumber(today.total)),
+                h('div', { className: 'dt-detail' },
+                  detail('输入', today.input),
+                  detail('输出', today.output),
+                  detail('缓存读', today.cacheRead),
+                  detail('缓存写', today.cacheWrite)))),
+        h('div', { className: 'dtp-card' },
+          h('div', { className: 'dt-h' }, '用量趋势'),
+          h('div', { className: 'dt-switch' },
+            h('button', {
+              type: 'button',
+              className: days === 7 ? 'dt-on' : '',
+              onClick: () => setDays(7),
+            }, '近 7 天'),
+            h('button', {
+              type: 'button',
+              className: days === 30 ? 'dt-on' : '',
+              onClick: () => setDays(30),
+            }, '近 30 天')),
+          chart(chartRows, pickedDate, (d) => setPickedDate(d))),
+        h('div', { className: 'dtp-card' },
+          h('div', { className: 'dt-h' }, '按模型 · ' + (picked ? fmtDate(picked.date) : '今日')),
+          modelRows.length
+            ? table(['模型', '输入', '输出', '总计'],
+                modelRows.map((r) => [r.model, formatNumber(r.input), formatNumber(r.output), formatNumber(r.total)]))
+            : h('div', { className: 'dtp-empty' }, '这天没有按模型的数据')),
+        h('div', { className: 'dtp-card' },
+          h('div', { className: 'dt-h' }, '最近 30 天'),
+          tableRows.length
+            ? table(['日期', '总计', '输入', '输出', '缓存读', '调用'],
+                tableRows.map((r) => [
+                  fmtDate(r.date),
+                  formatNumber(r.total),
+                  formatNumber(r.input),
+                  formatNumber(r.output),
+                  formatNumber(r.cacheRead),
+                  formatNumber(r.calls),
+                ]))
+            : h('div', { className: 'dtp-empty' }, '暂无趋势数据')),
+        h('div', { className: 'dt-src' }, '数据来自 cost-meter 账本'))
     }
 
     return {
@@ -277,6 +456,16 @@ window.__ModuleLoader__.load({
               label: () => 'Token 用量',
             },
             DailyTokenWidget,
+          ))
+        ctx.slots.inject('settings.section', () =>
+          ctx.slots.register(
+            {
+              name: 'settings.section',
+              id: 'daily-token',
+              order: 31,
+              label: () => 'Token 用量',
+            },
+            DailyTokenPage,
           ))
       },
     }

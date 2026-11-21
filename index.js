@@ -1,7 +1,7 @@
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { sumDay, buildTrend } from './lib/summary.js'
+import { sumDay, sumByModel, buildTrend } from './lib/summary.js'
 
 const LEDGER = path.join(os.homedir(), '.dsh', 'storages', 'cost-meter', 'ledger.json')
 
@@ -40,20 +40,29 @@ export function apply(ctx) {
         const pickedDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : null
         const ledgerDays = await readLedger()
         const today = todayStr()
-        const selected = pickedDate ? { date: pickedDate, ...sumDay((ledgerDays && ledgerDays[pickedDate]) || {}) } : null
+        const pickedDay = pickedDate ? ((ledgerDays && ledgerDays[pickedDate]) || {}) : null
+        const selected = pickedDate
+          ? { date: pickedDate, ...sumDay(pickedDay), byModel: sumByModel(pickedDay) }
+          : null
         if (!ledgerDays) {
-          send(200, { today: { date: today, ...sumDay({}) }, selected, trend: buildTrend({}, today, days), stale: true })
+          send(200, {
+            today: { date: today, ...sumDay({}), byModel: [] },
+            selected,
+            trend: buildTrend({}, today, days),
+            stale: true,
+          })
           return
         }
+        const todayDay = ledgerDays[today] || {}
         send(200, {
-          today: { date: today, ...sumDay(ledgerDays[today] || {}) },
+          today: { date: today, ...sumDay(todayDay), byModel: sumByModel(todayDay) },
           selected,
           trend: buildTrend(ledgerDays, today, days),
           stale: false,
         })
       } catch (err) {
         ctx.logger?.warn?.('dsh-daily-token: api failed: ' + (err?.message ?? err))
-        send(200, { today: { date: todayStr(), ...sumDay({}) }, selected: null, trend: [], stale: true })
+        send(200, { today: { date: todayStr(), ...sumDay({}), byModel: [] }, selected: null, trend: [], stale: true })
       }
     },
   }
