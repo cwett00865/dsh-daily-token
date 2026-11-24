@@ -41,8 +41,12 @@ window.__ModuleLoader__.load({
       const style = document.createElement('style')
       style.id = STYLE_ID
       style.textContent = [
-        '.dt-wrap{position:relative;display:inline-block;margin:12px 0 10px;font-family:inherit;font-size:12px;line-height:16px}',
-        '.dt-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;font:inherit;font-size:12px;line-height:16px;cursor:pointer;border-radius:6px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
+        '.dt-wrap{position:relative;display:inline-flex;align-items:center;gap:6px;margin:12px 0 10px;font-family:inherit;font-size:12px;line-height:16px}',
+        '.dt-refresh{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;font:inherit;font-size:14px;line-height:1;cursor:pointer;border-radius:6px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit));flex:0 0 auto}',
+        '.dt-refresh:hover{border-color:var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor));color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
+        '.dt-refresh.dt-spin{animation:dt-rotate .9s linear infinite}',
+        '@keyframes dt-rotate{from{transform:rotate(0)}to{transform:rotate(360deg)}}',
+        '.dt-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;font:inherit;font-size:12px;line-height:16px;cursor:pointer;border-radius:6px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit));max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}',
         '.dt-btn:hover{border-color:var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor))}',
         '.dt-pop{position:fixed;box-sizing:border-box;padding:14px;z-index:1000;border-radius:10px;width:430px;max-width:calc(100vw - 16px);max-height:min(72vh,640px);overflow:auto;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg-elevated,var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1,transparent)));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
         '.dt-block{padding:10px 0;border-bottom:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor))}',
@@ -98,6 +102,9 @@ window.__ModuleLoader__.load({
         '.dtp-sum-v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}',
         '.dtp-sum-avg{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
         '.dtp-sum-detail{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit));margin-bottom:8px;font-variant-numeric:tabular-nums}',
+        '.dtp-range{display:flex;align-items:center;gap:6px;margin:8px 0 0;flex-wrap:wrap}',
+        '.dtp-range .dt-date{width:auto;flex:0 0 auto}',
+        '.dtp-range-sep{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
       ].join('\n')
       document.head.appendChild(style)
     }
@@ -243,6 +250,13 @@ window.__ModuleLoader__.load({
           'aria-expanded': open ? 'true' : 'false',
           onClick: () => setOpen((v) => !v),
         }, buttonLabel),
+        h('button', {
+          type: 'button',
+          className: 'dt-refresh' + (result.loading ? ' dt-spin' : ''),
+          title: '刷新',
+          'aria-label': '刷新今日用量',
+          onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); setRetry((n) => n + 1) },
+        }, '↻'),
         open
           ? portalize(h('div', { className: 'dt-pop', ref: popRef, style: popStyle },
               result.loading
@@ -321,8 +335,11 @@ window.__ModuleLoader__.load({
 
     /** 设置里的整页：日期对比 + 趋势 + 按模型 + 最近 30 天明细。 */
     function DailyTokenPage() {
-      const [days, setDays] = useState(30)
+      const [mode, setMode] = useState('30')
       const [pickedDate, setPickedDate] = useState('')
+      const [fromDraft, setFromDraft] = useState('')
+      const [toDraft, setToDraft] = useState('')
+      const [applied, setApplied] = useState(null)
       const [result, setResult] = useState({ data: null, loading: true, error: null })
       const [retry, setRetry] = useState(0)
 
@@ -331,7 +348,10 @@ window.__ModuleLoader__.load({
         let controller = null
         try { controller = typeof AbortController === 'function' ? new AbortController() : null } catch { controller = null }
         setResult({ data: null, loading: true, error: null })
-        fetch(API + '?days=30' + (pickedDate ? '&date=' + encodeURIComponent(pickedDate) : ''), controller ? { signal: controller.signal } : undefined)
+        const qs = mode === 'custom' && applied
+          ? '?from=' + encodeURIComponent(applied.from) + '&to=' + encodeURIComponent(applied.to)
+          : '?days=30'
+        fetch(API + qs + (pickedDate ? '&date=' + encodeURIComponent(pickedDate) : ''), controller ? { signal: controller.signal } : undefined)
           .then((res) => {
             if (!res || !res.ok) throw new Error('HTTP ' + (res && res.status))
             return res.json()
@@ -346,7 +366,7 @@ window.__ModuleLoader__.load({
           cancelled = true
           try { if (controller) controller.abort() } catch { /* ignore */ }
         }
-      }, [retry, pickedDate])
+      }, [retry, pickedDate, mode, applied])
 
       const data = result.data
       const hasData = !!(data && !data.stale && data.today && typeof data.today === 'object')
@@ -373,8 +393,14 @@ window.__ModuleLoader__.load({
       }
 
       const modelRows = shown && Array.isArray(shown.byModel) ? shown.byModel : []
-      const chartRows = days === 30 ? trend : trend.slice(-7)
+      const winDays = mode === '7' ? 7 : 30
+      const chartRows = mode === 'custom' ? trend : trend.slice(-winDays)
       const tableRows = trend.slice().reverse()
+      const sumLabel = mode === 'custom'
+        ? (data.range && data.range.from
+            ? fmtDate(data.range.from) + ' – ' + fmtDate(data.range.to) + ' 合计'
+            : '区间合计')
+        : '近 ' + winDays + ' 天合计'
       const rangeSum = chartRows.reduce((acc, r) => {
         acc.total += (r && r.total) || 0
         acc.input += (r && r.input) || 0
@@ -426,16 +452,48 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dt-switch' },
             h('button', {
               type: 'button',
-              className: days === 7 ? 'dt-on' : '',
-              onClick: () => setDays(7),
+              className: mode === '7' ? 'dt-on' : '',
+              onClick: () => setMode('7'),
             }, '近 7 天'),
             h('button', {
               type: 'button',
-              className: days === 30 ? 'dt-on' : '',
-              onClick: () => setDays(30),
-            }, '近 30 天')),
+              className: mode === '30' ? 'dt-on' : '',
+              onClick: () => setMode('30'),
+            }, '近 30 天'),
+            h('button', {
+              type: 'button',
+              className: mode === 'custom' ? 'dt-on' : '',
+              onClick: () => setMode('custom'),
+            }, '自选')),
+          mode === 'custom'
+            ? h('div', { className: 'dtp-range' },
+                h('input', {
+                  type: 'date',
+                  className: 'dt-date',
+                  value: fromDraft,
+                  max: today.date,
+                  onChange: (e) => setFromDraft(e.target.value || ''),
+                }),
+                h('span', { className: 'dtp-range-sep' }, '至'),
+                h('input', {
+                  type: 'date',
+                  className: 'dt-date',
+                  value: toDraft,
+                  max: today.date,
+                  onChange: (e) => setToDraft(e.target.value || ''),
+                }),
+                h('button', {
+                  type: 'button',
+                  className: 'dt-today',
+                  disabled: !(fromDraft && toDraft),
+                  onClick: () => {
+                    if (!fromDraft || !toDraft) return
+                    setApplied(fromDraft <= toDraft ? { from: fromDraft, to: toDraft } : { from: toDraft, to: fromDraft })
+                  },
+                }, '应用'))
+            : null,
           h('div', { className: 'dtp-sum' },
-            h('span', { className: 'dtp-sum-k' }, '近 ' + days + ' 天合计'),
+            h('span', { className: 'dtp-sum-k' }, sumLabel),
             h('span', { className: 'dtp-sum-v' }, formatNumber(rangeSum.total)),
             h('span', { className: 'dtp-sum-avg' }, '日均 ' + formatNumber(rangeAvg))),
           h('div', { className: 'dtp-sum-detail' },
@@ -448,7 +506,7 @@ window.__ModuleLoader__.load({
                 modelRows.map((r) => [r.model, formatNumber(r.input), formatNumber(r.output), formatNumber(r.total)]))
             : h('div', { className: 'dtp-empty' }, '这天没有按模型的数据')),
         h('div', { className: 'dtp-card' },
-          h('div', { className: 'dt-h' }, '最近 30 天'),
+          h('div', { className: 'dt-h' }, mode === 'custom' ? '区间明细' : '最近 30 天'),
           tableRows.length
             ? table(['日期', '总计', '输入', '输出', '缓存读', '调用'],
                 tableRows.map((r) => [

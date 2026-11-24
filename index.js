@@ -1,9 +1,12 @@
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { sumDay, sumByModel, buildTrend } from './lib/summary.js'
+import { sumDay, sumByModel, buildTrend, buildRange } from './lib/summary.js'
 
 const LEDGER = path.join(os.homedir(), '.dsh', 'storages', 'cost-meter', 'ledger.json')
+// 自选区间最多 366 天，超了只取靠后的 366 天
+const MAX_RANGE_DAYS = 366
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function todayStr() {
   // 本机时区的 YYYY-MM-DD
@@ -35,34 +38,36 @@ export function apply(ctx) {
       try {
         const url = new URL(req.url ?? '/', 'http://dsh.internal')
         if (url.pathname !== '/daily-token/api/summary') { send(404, { error: 'not-found' }); return }
-        const days = [7, 30].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 7
+        const daysParam = Number(url.searchParams.get('days'))
+        const days = [7, 30].includes(daysParam) ? daysParam : 7
         const rawDate = url.searchParams.get('date')
-        const pickedDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : null
+        const pickedDate = rawDate && DATE_RE.test(rawDate) ? rawDate : null
+        // 自选区间：from/to 任一给了就按区间算；格式或日期非法时退回 days 口径
+        const rawFrom = url.searchParams.get('from')
+        const rawTo = url.searchParams.get('to')
+        const wantRange = !!(rawFrom || rawTo)
         const ledgerDays = await readLedger()
+        const ledger = ledgerDays || {}
         const today = todayStr()
-        const pickedDay = pickedDate ? ((ledgerDays && ledgerDays[pickedDate]) || {}) : null
+        const pickedDay = pickedDate ? (ledger[pickedDate] || {}) : {}
         const selected = pickedDate
           ? { date: pickedDate, ...sumDay(pickedDay), byModel: sumByModel(pickedDay) }
           : null
-        if (!ledgerDays) {
-          send(200, {
-            today: { date: today, ...sumDay({}), byModel: [] },
-            selected,
-            trend: buildTrend({}, today, days),
-            stale: true,
-          })
-          return
-        }
-        const todayDay = ledgerDays[today] || {}
+        const customTrend = wantRange ? buildRange(ledger, rawFrom, rawTo, MAX_RANGE_DAYS) : null
+        const trend = customTrend || buildTrend(ledger, today, days)
+        const range = trend.length
+          ? { from: trend[0].date, to: trend[trend.length - 1].date, days: trend.length }
+          : { from: today, to: today, days: 0 }
         send(200, {
-          today: { date: today, ...sumDay(todayDay), byModel: sumByModel(todayDay) },
+          today: { date: today, ...sumDay(ledger[today] || {}), byModel: sumByModel(ledger[today] || {}) },
           selected,
-          trend: buildTrend(ledgerDays, today, days),
-          stale: false,
+          trend,
+          range,
+          stale: !ledgerDays,
         })
       } catch (err) {
         ctx.logger?.warn?.('dsh-daily-token: api failed: ' + (err?.message ?? err))
-        send(200, { today: { date: todayStr(), ...sumDay({}), byModel: [] }, selected: null, trend: [], stale: true })
+        send(200, { today: { date: todayStr(), ...sumDay({}), byModel: [] }, selected: null, trend: [], range: null, stale: true })
       }
     },
   }

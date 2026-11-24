@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { sumDay, sumByModel, dateKeys, buildTrend, formatNumber } from '../lib/summary.js'
+import { sumDay, sumByModel, dateKeys, buildTrend, rangeKeys, buildRange, formatNumber } from '../lib/summary.js'
 
 // 计费口径：不含 reasoning
 assert.deepEqual(
@@ -39,6 +39,29 @@ assert.equal(byModel[1].total, 2)
 // 没有 sessions / 没有 byProviderModel 时返回空数组，不崩
 assert.deepEqual(sumByModel({}), [])
 assert.deepEqual(sumByModel({ sessions: [{}, null] }), [])
+
+// 自定义区间：闭区间、升序、跨月正确
+assert.deepEqual(rangeKeys('2026-10-30', '2026-11-02'), ['2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02'])
+// 起止写反自动对调
+assert.deepEqual(rangeKeys('2026-11-02', '2026-10-30'), ['2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02'])
+// 单日区间
+assert.deepEqual(rangeKeys('2026-11-18', '2026-11-18'), ['2026-11-18'])
+// 非法日期与格式返回 null
+assert.equal(rangeKeys('2026-02-31', '2026-03-02'), null)
+assert.equal(rangeKeys('2026-1-1', '2026-01-02'), null)
+assert.equal(rangeKeys(null, '2026-01-02'), null)
+// 超过上限时只保留靠后的天数
+const capped = rangeKeys('2026-01-01', '2026-12-31', 10)
+assert.equal(capped.length, 10)
+assert.equal(capped[9], '2026-12-31')
+assert.equal(capped[0], '2026-12-22')
+// buildRange 填 0 且不丢日期
+const ranged = buildRange({ '2026-11-18': { input: 10, output: 5 } }, '2026-11-17', '2026-11-19')
+assert.equal(ranged.length, 3)
+assert.equal(ranged[0].total, 0)
+assert.equal(ranged[1].total, 15)
+assert.equal(ranged[2].date, '2026-11-19')
+assert.equal(buildRange({}, '2026-02-31', '2026-03-02'), null)
 
 // 格式化三档
 assert.equal(formatNumber(9999), '9999')
