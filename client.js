@@ -47,7 +47,7 @@ window.__ModuleLoader__.load({
         '.dt-refresh:hover{border-color:var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor));color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
         '.dt-refresh.dt-spin{animation:dt-rotate .9s linear infinite}',
         '@keyframes dt-rotate{from{transform:rotate(0)}to{transform:rotate(360deg)}}',
-        '.dt-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;font:inherit;font-size:12px;line-height:16px;cursor:pointer;border-radius:6px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit));max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}',
+        '.dt-btn{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;padding:5px 10px;font:inherit;font-size:12px;line-height:16px;cursor:pointer;border-radius:6px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit));max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}',
         '.dt-btn:hover{border-color:var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor))}',
         '.dt-pop{position:fixed;box-sizing:border-box;padding:14px;z-index:1000;border-radius:10px;width:430px;max-width:calc(100vw - 16px);max-height:min(72vh,640px);overflow:auto;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg-elevated,var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1,transparent)));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
         '.dt-block{padding:10px 0;border-bottom:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor))}',
@@ -107,9 +107,8 @@ window.__ModuleLoader__.load({
         '.dtp-range .dt-date{width:auto;flex:0 0 auto}',
         '.dtp-range-sep{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
         // 左下角常驻速率小条：portal 到 body，不随侧栏裁剪/滚动
-        '.dt-rate{position:fixed;left:16px;bottom:12px;z-index:999;display:flex;align-items:baseline;gap:6px;padding:5px 10px;border-radius:8px;font-family:inherit;font-size:12px;line-height:16px;pointer-events:none;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg-elevated,var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1,transparent)));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
-        '.dt-rate-v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
-        '.dt-rate-u{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
+        '.dt-rate-inline{font-size:11px;line-height:13px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit));font-variant-numeric:tabular-nums}',
+        '.dt-rate-inline .dt-rate-v{font-weight:700;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
       ].join('\n')
       document.head.appendChild(style)
     }
@@ -172,8 +171,8 @@ window.__ModuleLoader__.load({
 
     ensureStyle()
 
-    /** 左下角常驻速率小条：每秒拉一次 host 的滑窗速率，显示估算 tok/s。 */
-    function TokenRateBar() {
+    /** 每秒拉一次 host 的滑窗速率，返回估算 tok/s，供按钮内小字显示。 */
+    function useTokenRate() {
       const [rate, setRate] = useState(0)
       useEffect(() => {
         let cancelled = false
@@ -191,13 +190,11 @@ window.__ModuleLoader__.load({
           if (timer != null && typeof window !== 'undefined') window.clearInterval(timer)
         }
       }, [])
-      const node = h('div', { className: 'dt-rate', title: '根据文字增量估算，非精确 token 数' },
-        h('span', { className: 'dt-rate-v' }, rate.toFixed(1)),
-        h('span', { className: 'dt-rate-u' }, 'tok/s · 估算'))
-      return typeof document !== 'undefined' && createPortal ? createPortal(node, document.body) : node
+      return rate
     }
 
     function DailyTokenWidget() {
+      const rate = useTokenRate()
       const [days, setDays] = useState(7)
       const [pickedDate, setPickedDate] = useState('')
       const [result, setResult] = useState({ data: null, loading: true, error: null })
@@ -279,7 +276,14 @@ window.__ModuleLoader__.load({
           title: '查看每日 Token 用量',
           'aria-expanded': open ? 'true' : 'false',
           onClick: () => setOpen((v) => !v),
-        }, buttonLabel),
+        },
+          buttonLabel,
+          h('span', {
+            className: 'dt-rate-inline',
+            title: '根据文字增量估算，非精确 token 数',
+          },
+            h('span', { className: 'dt-rate-v' }, rate.toFixed(1)),
+            ' tok/s · 估算')),
         h('button', {
           type: 'button',
           className: 'dt-refresh' + (result.loading ? ' dt-spin' : ''),
@@ -554,17 +558,6 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       apply(ctx) {
-        // 左下角常驻速率小条，挂在全屏浮层槽位，不受侧栏裁剪
-        ctx.slots.inject('shell.overlay', () =>
-          ctx.slots.register(
-            {
-              name: 'shell.overlay',
-              id: 'daily-token-rate',
-              order: 5,
-              label: () => 'Token 速率',
-            },
-            TokenRateBar,
-          ))
         ctx.slots.inject('sidebar.footer.action', () =>
           ctx.slots.register(
             {
