@@ -1,0 +1,6 @@
+url: https://github.com/cwett00865/dsh-daily-token
+name: cwett00865/dsh-daily-token
+category: usage
+description:
+  en: Displays daily token usage and an estimated real-time token speed in the DSH sidebar.
+  zh: 在 DSH 侧边栏显示每日 Token 用量和实时生成速度（估算）。
