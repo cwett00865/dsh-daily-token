@@ -2,6 +2,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { sumDay, sumByModel, buildTrend, buildRange } from './lib/summary.js'
+import { estimateTokens, RateMeter } from './lib/tokenRate.js'
 
 const LEDGER = path.join(os.homedir(), '.dsh', 'storages', 'cost-meter', 'ledger.json')
 // 自选区间最多 366 天，超了只取靠后的 366 天
@@ -26,6 +27,24 @@ async function readLedger() {
 }
 
 export function apply(ctx) {
+  // 实时 tok/s：全局观察 assistant 流，纯只读，不改模型流、不碰账本。
+  // 所有会话（含子代理）的文字/推理增量都计入，按字数估算 token，3 秒滑窗算速率。
+  const meter = new RateMeter(3000)
+  const onAssistantStream = ({ frame }) => {
+    try {
+      if (!frame || frame.type !== 'chunk') return
+      const chunk = frame.chunk
+      if (!chunk) return
+      if (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta') {
+        meter.add(estimateTokens(chunk.text), Date.now())
+      }
+    } catch {
+      // 监听器永不抛错，避免影响宿主流式发布
+    }
+  }
+  ctx.on?.('agent/assistant-stream', onAssistantStream)
+  ctx.effect?.(() => () => { try { ctx.off?.('agent/assistant-stream', onAssistantStream) } catch {} }, 'dsh-daily-token: rate listener')
+
   const route = {
     kind: 'prefix',
     path: '/daily-token/api',
@@ -37,6 +56,11 @@ export function apply(ctx) {
       }
       try {
         const url = new URL(req.url ?? '/', 'http://dsh.internal')
+        // 实时速率：轻量接口，不读账本
+        if (url.pathname === '/daily-token/api/rate') {
+          send(200, { rate: meter.rate(), estimated: true })
+          return
+        }
         if (url.pathname !== '/daily-token/api/summary') { send(404, { error: 'not-found' }); return }
         const daysParam = Number(url.searchParams.get('days'))
         const days = [7, 30].includes(daysParam) ? daysParam : 7

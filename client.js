@@ -25,6 +25,7 @@ window.__ModuleLoader__.load({
 
     const STYLE_ID = 'dsh-daily-token/widget'
     const API = '/daily-token/api/summary'
+    const RATE_API = '/daily-token/api/rate'
 
     /** Client-side copy of lib/summary.js formatNumber (client cannot import host modules). */
     function formatNumber(n) {
@@ -105,6 +106,10 @@ window.__ModuleLoader__.load({
         '.dtp-range{display:flex;align-items:center;gap:6px;margin:8px 0 0;flex-wrap:wrap}',
         '.dtp-range .dt-date{width:auto;flex:0 0 auto}',
         '.dtp-range-sep{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
+        // 左下角常驻速率小条：portal 到 body，不随侧栏裁剪/滚动
+        '.dt-rate{position:fixed;left:16px;bottom:12px;z-index:999;display:flex;align-items:baseline;gap:6px;padding:5px 10px;border-radius:8px;font-family:inherit;font-size:12px;line-height:16px;pointer-events:none;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg-elevated,var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1,transparent)));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
+        '.dt-rate-v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
+        '.dt-rate-u{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
       ].join('\n')
       document.head.appendChild(style)
     }
@@ -166,6 +171,31 @@ window.__ModuleLoader__.load({
     }
 
     ensureStyle()
+
+    /** 左下角常驻速率小条：每秒拉一次 host 的滑窗速率，显示估算 tok/s。 */
+    function TokenRateBar() {
+      const [rate, setRate] = useState(0)
+      useEffect(() => {
+        let cancelled = false
+        let timer = null
+        const tick = () => {
+          fetch(RATE_API)
+            .then((res) => (res && res.ok ? res.json() : null))
+            .then((json) => { if (!cancelled && json) setRate(Number(json.rate) || 0) })
+            .catch(() => { if (!cancelled) setRate(0) })
+        }
+        tick()
+        if (typeof window !== 'undefined') timer = window.setInterval(tick, 1000)
+        return () => {
+          cancelled = true
+          if (timer != null && typeof window !== 'undefined') window.clearInterval(timer)
+        }
+      }, [])
+      const node = h('div', { className: 'dt-rate', title: '根据文字增量估算，非精确 token 数' },
+        h('span', { className: 'dt-rate-v' }, rate.toFixed(1)),
+        h('span', { className: 'dt-rate-u' }, 'tok/s · 估算'))
+      return typeof document !== 'undefined' && createPortal ? createPortal(node, document.body) : node
+    }
 
     function DailyTokenWidget() {
       const [days, setDays] = useState(7)
@@ -524,6 +554,17 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       apply(ctx) {
+        // 左下角常驻速率小条，挂在全屏浮层槽位，不受侧栏裁剪
+        ctx.slots.inject('shell.overlay', () =>
+          ctx.slots.register(
+            {
+              name: 'shell.overlay',
+              id: 'daily-token-rate',
+              order: 5,
+              label: () => 'Token 速率',
+            },
+            TokenRateBar,
+          ))
         ctx.slots.inject('sidebar.footer.action', () =>
           ctx.slots.register(
             {
