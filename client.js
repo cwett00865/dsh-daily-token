@@ -47,7 +47,7 @@ window.__ModuleLoader__.load({
         '.dt-refresh:hover{border-color:var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor));color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
         '.dt-refresh.dt-spin{animation:dt-rotate .9s linear infinite}',
         '@keyframes dt-rotate{from{transform:rotate(0)}to{transform:rotate(360deg)}}',
-        '.dt-btn{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;padding:5px 10px;font:inherit;font-size:12px;line-height:16px;cursor:pointer;border-radius:6px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit));max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}',
+        '.dt-btn{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;padding:5px 10px;font:inherit;font-size:13px;line-height:17px;cursor:pointer;border-radius:6px;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg,var(--dsw-alias-bg-layer-1,transparent));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit));max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}',
         '.dt-btn:hover{border-color:var(--dsh-accent,var(--dsw-alias-state-business-primary,currentColor))}',
         '.dt-pop{position:fixed;box-sizing:border-box;padding:14px;z-index:1000;border-radius:10px;width:430px;max-width:calc(100vw - 16px);max-height:min(72vh,640px);overflow:auto;border:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor));background:var(--dsh-bg-elevated,var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-1,transparent)));color:var(--dsh-text,var(--dsw-alias-label-primary,inherit))}',
         '.dt-block{padding:10px 0;border-bottom:1px solid var(--dsh-border,var(--dsw-alias-border-l2,currentColor))}',
@@ -107,7 +107,7 @@ window.__ModuleLoader__.load({
         '.dtp-range .dt-date{width:auto;flex:0 0 auto}',
         '.dtp-range-sep{font-size:11px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit))}',
         // 左下角常驻速率小条：portal 到 body，不随侧栏裁剪/滚动
-        '.dt-rate-inline{font-size:11px;line-height:13px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit));font-variant-numeric:tabular-nums}',
+        '.dt-rate-inline{font-size:12px;line-height:14px;color:var(--dsh-muted,var(--dsw-alias-label-tertiary,inherit));font-variant-numeric:tabular-nums}',
         '.dt-rate-inline .dt-rate-v{font-weight:700;color:var(--dsh-accent,var(--dsw-alias-state-business-primary,inherit))}',
       ].join('\n')
       document.head.appendChild(style)
